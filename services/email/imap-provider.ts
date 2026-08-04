@@ -90,9 +90,22 @@ export class ImapProvider implements MailProviderClient {
         lock.release();
       }
     } catch (error) {
+      // imapflow's Error.message is often a generic "Command failed" - the
+      // real reason from the server lives on extra properties (response,
+      // responseText, code, authenticationFailed, ...). Surface all of it.
+      const details =
+        error instanceof Error
+          ? Object.fromEntries(
+              Object.getOwnPropertyNames(error)
+                .filter((k) => !["stack"].includes(k))
+                .map((k) => [k, (error as unknown as Record<string, unknown>)[k]])
+            )
+          : { raw: String(error) };
+
       logger.error(SCOPE, "Failed to fetch messages via IMAP", {
         host: this.config.host,
-        error: error instanceof Error ? error.message : String(error),
+        username: this.config.username,
+        ...details,
       });
       throw error;
     } finally {
